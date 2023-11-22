@@ -13,12 +13,13 @@ use Illuminate\Support\Facades\DB;
 
 class AbsenController extends Controller
 {
-    public function absenHome() {
-        
+    public function absenHome()
+    {
+
         $lastAbsenUsr = AbsenUsers::where('user_id', Auth::user()->id)->latest()->first();
         $todaysDate = Carbon::parse($lastAbsenUsr->created_at)->translatedFormat('l, d F Y');
         $absenUser = AbsenUsers::where('user_id', Auth::user()->id)->orderBy('created_at', 'desc')->get();
-        
+
         $works = ['WFO', 'WFH', 'Izin'];
         $icons = [
             '<svg viewBox="0 0 512 512" fill="#FFFFFF" xmlns="http://www.w3.org/2000/svg">
@@ -43,21 +44,22 @@ class AbsenController extends Controller
         ]);
     }
 
-    public function absenAdd(Request $request, $id) {
+    public function absenAdd(Request $request, $id)
+    {
         //--- validate input data
         $request->validate([
             "sistem-kerja" => 'required|string',
             "tugas" => 'required|string',
             "deskripsi-tugas" => 'required',
         ]);
-        
+
         //--- find a row from user's absen table by id
         $absenUser = AbsenUsers::findOrFail($id);
         //--- format the date into: Year month day
         $dateAbsen = $absenUser->created_at->format('Y-m-d');
         //--- get local's date today, with a same format
         $todaysDate = Carbon::now('Asia/Makassar')->format('Y-m-d');
-        
+
         //--- parse both date to be the same date type, for comparing
         $dateCreatedAt = Carbon::parse($dateAbsen);
         $todaysDate = Carbon::parse($todaysDate);
@@ -76,11 +78,11 @@ class AbsenController extends Controller
 
         //--- Updates work count
         $absenDate = Absen::findOrFail($absenUser->absen->id);
-        if($request->get('tugas') == 'Bot') {
+        if ($request->get('tugas') == 'Bot') {
             $absenDate->update([
                 'count_bot' => $absenDate->count_bot + $request->get('deskripsi-tugas'),
             ]);
-        } elseif($request->get('tugas') == 'Clone') {
+        } elseif ($request->get('tugas') == 'Clone') {
             $absenDate->update([
                 'count_clone' => $absenDate->count_clone + $request->get('deskripsi-tugas'),
             ]);
@@ -89,7 +91,8 @@ class AbsenController extends Controller
         return redirect('/member/absen#kehadiran');
     }
 
-    public static function absenCheck() {
+    public static function absenCheck()
+    {
         //--- get latest record from table absens
         $absenDate = DB::table('absens')->orderBy('created_at', 'desc')->value('created_at');
 
@@ -100,7 +103,7 @@ class AbsenController extends Controller
         $dateToday = Carbon::parse($todaysDate);
         $dateAbsen = Carbon::parse($absenDate);
         $gapday = $dateAbsen->diffInDays($dateToday);
-        
+
         //--- Create a new Absen record as many as the gap day is
         $pastDate = $dateAbsen;
         // dd($absenDate, $gapday);
@@ -108,12 +111,12 @@ class AbsenController extends Controller
 
             //--- sum the latest absen to 1 day
             $pastDate = Carbon::parse($pastDate)->addDay();
-            
+
             //--- make the date format readable
             $dateNormie = Carbon::parse($pastDate)->translatedFormat('d F Y');
 
             //--- Do, if the result of sum date is more than today's date
-            if($pastDate > $todaysDate) {
+            if ($pastDate > $todaysDate) {
                 //--- stop the loop
                 break;
             }
@@ -132,29 +135,30 @@ class AbsenController extends Controller
         self::userAbsenCheck();
     }
 
-    public static function userAbsenCheck() {
+    public static function userAbsenCheck()
+    {
         //--- get all record from absens table
         $absens = Absen::get();
         $users = User::where('level', '!=', 'admin')->where('level', '!=', 'customer')->get();
-        
+
         //--- Check every absen to be equal to user's absen
-        foreach($absens as $absen) {
+        foreach ($absens as $absen) {
             $alphaCount = $absen->count_alpha;
 
             //--- Check every user
-            foreach($users as $user) {
+            foreach ($users as $user) {
                 //--- get date from absen's row
-                $absenDate = $absen->created_at->format('Y-m-d 00:00:00');
+                $absenDate = $absen->created_at->format('2023-09-01 00:00:00');
                 //--- get a row from user's absen where date is equal to absen's date
                 $userAbsen = AbsenUsers::where('user_id', $user->id)->where('created_at', $absenDate)->first();
 
                 //--- If the data is found, Update it. Else, Create it
-                if($userAbsen) {
+                if ($userAbsen) {
                     //--- If the data's status is pending, do-
-                    if($userAbsen->status == 'pending') {
+                    if ($userAbsen->status == 'pending') {
                         //--- get status and the description, from a function that return array
                         list($status, $status_desc) = self::getStatusDesc($absenDate);
-        
+
                         //--- Update the row
                         AbsenUsers::findOrFail($userAbsen->id)->update([
                             'status' => $status,
@@ -162,19 +166,19 @@ class AbsenController extends Controller
                         ]);
 
                         //--- Check if its alpha, then Count
-                        if($status_desc == 'Alpha') {
+                        if ($status_desc == 'Alpha') {
                             Absen::findOrFail($absen->id)->update([
                                 'count_alpha' => ++$alphaCount,
                             ]);
                         }
-                    } 
-                //--- Create user's absen data
+                    }
+                    //--- Create user's absen data
                 } else {
                     // NEW CODE BUGABLE
-                    if(Carbon::parse($absen->created_at)->format('Y-m') >= Carbon::parse($user->created_at)->format('Y-m')) {
+                    if (Carbon::parse($absen->created_at)->format('Y-m') >= Carbon::parse($user->created_at)->format('Y-m')) {
                         //--- get status and the description, from a function that return array
                         list($status, $status_desc) = self::getStatusDesc($absenDate);
-    
+
                         //--- Create a row of user's absen data
                         AbsenUsers::create([
                             'status' => $status,
@@ -183,9 +187,9 @@ class AbsenController extends Controller
                             'user_id' => $user->id,
                             'created_at' => $absen->created_at,
                         ]);
-    
+
                         //--- Check if its alpha, then Count
-                        if($status_desc == 'Alpha') {
+                        if ($status_desc == 'Alpha') {
                             Absen::findOrFail($absen->id)->update([
                                 'count_alpha' => ++$alphaCount,
                             ]);
@@ -196,10 +200,11 @@ class AbsenController extends Controller
         }
     }
 
-    public static function getStatusDesc($dateCreatedAt) {
+    public static function getStatusDesc($dateCreatedAt)
+    {
         //--- get local's date today
         $todaysDate = Carbon::now('Asia/Makassar')->format('Y-m-d 00:00:00');
-        
+
         //--- parse both date to be the same date type, for comparing
         $dateCreatedAt = Carbon::parse($dateCreatedAt);
         $todaysDate = Carbon::parse($todaysDate);
@@ -208,12 +213,12 @@ class AbsenController extends Controller
         $status = 'pending';
 
         //--- If user's absen date is equal to today's date, do-
-        if($dateCreatedAt->isSameDay($todaysDate)) {
+        if ($dateCreatedAt->isSameDay($todaysDate)) {
             $status_desc = 'Absen';
-        //--- If user's absen date plus One, is equal to today's date, do-
-        } else if(Carbon::parse($dateCreatedAt)->addDay() == $todaysDate) {
+            //--- If user's absen date plus One, is equal to today's date, do-
+        } else if (Carbon::parse($dateCreatedAt)->addDay() == $todaysDate) {
             $status_desc = 'Telat';
-        //--- Else, set the description to Alpha and the status is pass
+            //--- Else, set the description to Alpha and the status is pass
         } else {
             $status = 'pass';
             $status_desc = 'Alpha';
@@ -222,5 +227,4 @@ class AbsenController extends Controller
         //--- return status and its description, using array
         return array($status, $status_desc);
     }
-
 }
